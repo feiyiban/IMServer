@@ -32,5 +32,4 @@ func (user *User) ListenMessage() {
 		message := <-user.C
 		user.Conn.Write([]byte(message + "\n"))
 	}
-
 }

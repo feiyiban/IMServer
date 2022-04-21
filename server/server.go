@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"sync"
 )
@@ -60,7 +61,30 @@ func (server *Server) handler(conn net.Conn) {
 
 	server.Broadcast(user, "上线啦!")
 
-	// select {}
+	// 接受客户端发送的消息
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			if n == 0 {
+				server.Broadcast(user, "下线")
+				return
+			}
+
+			if err != nil && err != io.EOF {
+				fmt.Println("Conn Read Err:", err)
+				return
+			}
+
+			//提取用户的消息
+			msg := string(buf[:n-1])
+
+			//将用户消息广播
+			server.Broadcast(user, msg)
+		}
+	}()
+
+	select {}
 }
 
 func (server *Server) Broadcast(user *User, msg string) {
