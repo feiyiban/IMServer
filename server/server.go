@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -57,6 +58,9 @@ func (server *Server) handler(conn net.Conn) {
 	user := NewUser(conn, server)
 	user.Online()
 
+	// 监听用户时候活跃
+	islive := make(chan bool)
+
 	// 接受客户端发送的消息
 	go func() {
 		buf := make([]byte, 4096)
@@ -77,10 +81,27 @@ func (server *Server) handler(conn net.Conn) {
 
 			//将用户消息广播
 			user.DoMessage(msg)
+			// 用户的任意消息
+			islive <- true
+
 		}
 	}()
 
-	select {}
+	for {
+		select {
+		case <-islive:
+			//当前用户是活跃
+			//不做任何处理
+		case <-time.After(time.Second * 10):
+			user.SendMsg("你被提了")
+			// 销毁用的资源
+			close(user.C)
+			// 关闭连接
+			conn.Close()
+
+			return
+		}
+	}
 }
 
 func (server *Server) Broadcast(user *User, msg string) {
