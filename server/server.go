@@ -54,12 +54,8 @@ func (server *Server) Start() {
 
 func (server *Server) handler(conn net.Conn) {
 	// 用户上线, 加入到OnLineMap
-	user := NewUser(conn)
-	server.mapLock.Lock()
-	server.OnLineMap[user.Name] = user
-	server.mapLock.Unlock()
-
-	server.Broadcast(user, "上线啦!")
+	user := NewUser(conn, server)
+	user.Online()
 
 	// 接受客户端发送的消息
 	go func() {
@@ -67,7 +63,7 @@ func (server *Server) handler(conn net.Conn) {
 		for {
 			n, err := conn.Read(buf)
 			if n == 0 {
-				server.Broadcast(user, "下线")
+				user.Offline()
 				return
 			}
 
@@ -80,7 +76,7 @@ func (server *Server) handler(conn net.Conn) {
 			msg := string(buf[:n-1])
 
 			//将用户消息广播
-			server.Broadcast(user, msg)
+			user.DoMessage(msg)
 		}
 	}()
 
