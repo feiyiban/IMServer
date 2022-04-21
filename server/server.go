@@ -3,17 +3,24 @@ package server
 import (
 	"fmt"
 	"net"
+	"sync"
 )
 
 type Server struct {
-	IP   string
-	Port int64
+	IP        string
+	Port      int64
+	OnLineMap map[string]*User
+	mapLock   sync.RWMutex
+
+	Message chan string
 }
 
 func NewServer(ip string, port int64) *Server {
 	srv := Server{
-		IP:   ip,
-		Port: port,
+		IP:        ip,
+		Port:      port,
+		OnLineMap: make(map[string]*User),
+		Message:   make(chan string),
 	}
 
 	return &srv
@@ -28,8 +35,8 @@ func (server *Server) Start() {
 	}
 
 	fmt.Printf("server listen on %s:%d\n", server.IP, server.Port)
-
 	defer listener.Close()
+	go server.ListenMessager()
 
 	for {
 		// accept
@@ -39,12 +46,35 @@ func (server *Server) Start() {
 			continue
 		}
 
-		fmt.Printf("client %s connected\n", conn.RemoteAddr().String())
-		go server.handler(&conn)
+		go server.handler(conn)
 
 	}
 }
 
-func (server *Server) handler(conn *net.Conn) {
-	// Handle msg
+func (server *Server) handler(conn net.Conn) {
+	// 用户上线, 加入到OnLineMap
+	user := NewUser(conn)
+	server.mapLock.Lock()
+	server.OnLineMap[user.Name] = user
+	server.mapLock.Unlock()
+
+	server.Broadcast(user, "上线啦!")
+
+	// select {}
+}
+
+func (server *Server) Broadcast(user *User, msg string) {
+	sendMsg := "[" + user.Address + "]" + user.Name + ":" + msg
+	server.Message <- sendMsg
+}
+
+func (server *Server) ListenMessager() {
+	for {
+		msg := <-server.Message
+		server.mapLock.Lock()
+		for _, cli := range server.OnLineMap {
+			cli.C <- msg
+		}
+		server.mapLock.Unlock()
+	}
 }
